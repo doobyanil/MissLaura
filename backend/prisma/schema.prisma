@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum Curriculum {
+  INDIAN
+  IB
+  MONTESSORI
+}
+
+enum Plan {
+  FREE
+  PREMIUM
+  ENTERPRISE
+}
+
+model School {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  address     String?
+  logo        String?  // URL to logo file
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users       User[]
+  worksheets  Worksheet[]
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            Role      @default(TEACHER)
+  isActive        Boolean   @default(true)
+  mustChangePassword Boolean @default(false)
+  resetToken      String?
+  resetTokenExpiry DateTime?
+  
+  schoolId       String
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  worksheets     Worksheet[]
+}
+
+model Worksheet {
+  id          String    @id @default(uuid())
+  title       String
+  curriculum  Curriculum
+  grade       String    // e.g., "Preschool", "KG1", "KG2", "Grade 1", etc.
+  ageGroup    String    // e.g., "3-4 years", "4-5 years", etc.
+  skill       String    // e.g., "Counting", "Letter Recognition", etc.
+  theme       String?   // e.g., "Animals", "Space", etc.
+  content     Json      // Worksheet content/structure
+  thumbnail   String?   // Preview image URL
+  
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([schoolId])
+  @@index([createdById])
+  @@index([curriculum])
+  @@index([grade])
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  name        String
+  curriculum  Curriculum
+  grade       String
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([name, curriculum, grade])
+}
+
+model Theme {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  iconUrl     String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
