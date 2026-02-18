@@ -233,6 +233,12 @@ const Dashboard = () => {
                     >
                       Download PDF
                     </button>
+                    <Link
+                      to={`/worksheets/${worksheet.id}`}
+                      className="px-4 py-2 bg-blue-100 text-blue-600 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
+                    >
+                      View
+                    </Link>
                   </div>
                 </div>
               </div>

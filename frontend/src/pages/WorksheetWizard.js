@@ -10,6 +10,9 @@ const WorksheetWizard = () => {
   const [skills, setSkills] = useState({});
   const [themes, setThemes] = useState([]);
   const [previewData, setPreviewData] = useState(null);
+  const [showFormsModal, setShowFormsModal] = useState(false);
+  const [formsExportData, setFormsExportData] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
   const [formData, setFormData] = useState({
     curriculum: '',
     grade: '',
@@ -241,6 +244,52 @@ const WorksheetWizard = () => {
     } catch (error) {
       toast.error('Failed to download PDF');
     }
+  };
+
+  // Microsoft Forms Export Functions
+  const handleExportToMicrosoftForms = async () => {
+    setExportLoading(true);
+    try {
+      const response = await axios.get(`/worksheets/${previewData.id}/microsoft-forms`);
+      setFormsExportData(response.data.data);
+      setShowFormsModal(true);
+    } catch (error) {
+      toast.error('Failed to export to Microsoft Forms');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleDownloadCSV = async () => {
+    try {
+      const response = await axios.get(`/worksheets/${previewData.id}/microsoft-forms/csv`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${previewData.title.replace(/\s+/g, '_')}_microsoft_forms.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('CSV downloaded!');
+    } catch (error) {
+      toast.error('Failed to download CSV');
+    }
+  };
+
+  const handleCopyToClipboard = () => {
+    if (formsExportData?.copyPasteText) {
+      navigator.clipboard.writeText(formsExportData.copyPasteText);
+      toast.success('Copied to clipboard!');
+    }
+  };
+
+  const openMicrosoftForms = () => {
+    window.open('https://forms.office.com/Pages/DesignPage.aspx', '_blank');
   };
 
   const getAvailableSkills = () => {
@@ -562,9 +611,95 @@ const WorksheetWizard = () => {
                 📄 Download PDF
               </button>
             </div>
+
+            {/* Microsoft Forms Export */}
+            <div className="mt-4">
+              <button
+                onClick={handleExportToMicrosoftForms}
+                disabled={exportLoading}
+                className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:opacity-50"
+              >
+                {exportLoading ? 'Preparing...' : '📋 Export to Microsoft Forms'}
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Microsoft Forms Export Modal */}
+      {showFormsModal && formsExportData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white rounded-t-2xl">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Export to Microsoft Forms</h2>
+                <button
+                  onClick={() => setShowFormsModal(false)}
+                  className="text-white hover:text-gray-200 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-blue-100 mt-1">Convert your worksheet to an online quiz</p>
+            </div>
+
+            <div className="p-6">
+              {/* Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <button
+                  onClick={openMicrosoftForms}
+                  className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+                >
+                  <div className="text-3xl mb-2">🔗</div>
+                  <div className="font-semibold text-blue-700">Open Microsoft Forms</div>
+                  <div className="text-sm text-gray-500">Create a new quiz</div>
+                </button>
+
+                <button
+                  onClick={handleDownloadCSV}
+                  className="p-4 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 transition-colors"
+                >
+                  <div className="text-3xl mb-2">📊</div>
+                  <div className="font-semibold text-green-700">Download CSV</div>
+                  <div className="text-sm text-gray-500">Import into Forms</div>
+                </button>
+
+                <button
+                  onClick={handleCopyToClipboard}
+                  className="p-4 bg-purple-50 border-2 border-purple-200 rounded-xl hover:bg-purple-100 transition-colors"
+                >
+                  <div className="text-3xl mb-2">📋</div>
+                  <div className="font-semibold text-purple-700">Copy to Clipboard</div>
+                  <div className="text-sm text-gray-500">Quick copy-paste</div>
+                </button>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                <h3 className="font-semibold text-gray-800 mb-3">How to use:</h3>
+                <ol className="list-decimal list-inside space-y-2 text-gray-600">
+                  <li>Click <strong>"Open Microsoft Forms"</strong> to go to Forms</li>
+                  <li>Click <strong>"New Quiz"</strong> to create a quiz</li>
+                  <li>Use the <strong>CSV file</strong> or <strong>copied text</strong> as reference</li>
+                  <li>Add each question manually with correct answers</li>
+                </ol>
+              </div>
+
+              {/* Preview */}
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-gray-100 px-4 py-2 font-semibold text-gray-700">
+                  Questions Preview ({formsExportData.formsData?.questions?.length || 0} questions)
+                </div>
+                <div className="p-4 max-h-60 overflow-y-auto">
+                  <pre className="text-sm text-gray-600 whitespace-pre-wrap font-mono">
+                    {formsExportData.copyPasteText}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

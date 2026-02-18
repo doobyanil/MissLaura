@@ -27,4 +27,10 @@ router.delete('/:id', worksheetController.deleteWorksheet);
 // Generate PDF
 router.get('/:id/pdf', worksheetController.generatePDF);
 
+// Export to Microsoft Forms
+router.get('/:id/microsoft-forms', worksheetController.exportToMicrosoftForms);
+
+// Download CSV for Microsoft Forms
+router.get('/:id/microsoft-forms/csv', worksheetController.downloadFormsCSV);
+
 module.exports = router;

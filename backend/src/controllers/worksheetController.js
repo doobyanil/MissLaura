@@ -3,6 +3,8 @@ const { AppError } = require('../middleware/errorHandler');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
+const n8nService = require('../services/n8nService');
+const microsoftFormsService = require('../services/microsoftFormsService');
 
 // Usage limits per plan
 const PLAN_LIMITS = {
@@ -10,6 +12,9 @@ const PLAN_LIMITS = {
   PREMIUM: 100,  // 100 worksheets per month
   ENTERPRISE: -1 // Unlimited
 };
+
+// Check if n8n is enabled
+const USE_N8N = process.env.USE_N8N === 'true';
 
 // Worksheet templates based on skill and curriculum
 const worksheetTemplates = {
@@ -576,8 +581,22 @@ const createWorksheet = async (req, res, next) => {
       });
     }
 
-    // Generate worksheet content
-    const content = generateWorksheetContent(skill, curriculum, grade, theme);
+    // Generate worksheet content - use n8n if enabled, otherwise use local templates
+    let content;
+    if (USE_N8N) {
+      console.log('[Worksheet] Using n8n AI service for content generation');
+      content = await n8nService.generateWorksheetContent({
+        curriculum,
+        grade,
+        ageGroup,
+        skill,
+        theme,
+        questionCount: 8
+      });
+    } else {
+      console.log('[Worksheet] Using local templates for content generation');
+      content = generateWorksheetContent(skill, curriculum, grade, theme);
+    }
 
     const worksheet = await prisma.worksheet.create({
       data: {
@@ -1187,10 +1206,79 @@ function generateWorksheetHTML(worksheet, showAnswers) {
   `;
 }
 
+// Export to Microsoft Forms
+const exportToMicrosoftForms = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { format = 'json' } = req.query; // json, csv, text
+
+    const worksheet = await prisma.worksheet.findFirst({
+      where: { id, schoolId: req.user.schoolId },
+      include: { school: true }
+    });
+
+    if (!worksheet) {
+      return next(new AppError('Worksheet not found', 404));
+    }
+
+    const exportData = microsoftFormsService.generateExportFormats(worksheet);
+
+    switch (format) {
+      case 'csv':
+        // Return CSV file for download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${worksheet.title.replace(/\s+/g, '_')}_forms.csv"`);
+        res.send(exportData.csvData);
+        break;
+
+      case 'text':
+        // Return plain text for copy-paste
+        res.setHeader('Content-Type', 'text/plain');
+        res.send(exportData.copyPasteText);
+        break;
+
+      case 'json':
+      default:
+        // Return JSON with all formats
+        res.json({
+          success: true,
+          data: exportData
+        });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Download CSV for Microsoft Forms import
+const downloadFormsCSV = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const worksheet = await prisma.worksheet.findFirst({
+      where: { id, schoolId: req.user.schoolId }
+    });
+
+    if (!worksheet) {
+      return next(new AppError('Worksheet not found', 404));
+    }
+
+    const csvData = microsoftFormsService.generateExcelImportData(worksheet);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${worksheet.title.replace(/\s+/g, '_')}_microsoft_forms.csv"`);
+    res.send(csvData);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createWorksheet,
   getWorksheets,
   getWorksheet,
   deleteWorksheet,
-  generatePDF
+  generatePDF,
+  exportToMicrosoftForms,
+  downloadFormsCSV
 };

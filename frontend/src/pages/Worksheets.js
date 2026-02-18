@@ -171,11 +171,17 @@ const Worksheets = () => {
                     <span>{new Date(worksheet.createdAt).toLocaleDateString()}</span>
                   </div>
                   <div className="flex gap-2">
+                    <Link
+                      to={`/worksheets/${worksheet.id}`}
+                      className="flex-1 py-2 px-3 bg-blue-100 text-blue-600 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm text-center"
+                    >
+                      View
+                    </Link>
                     <button
                       onClick={() => handleDownloadPDF(worksheet.id, worksheet.title)}
                       className="flex-1 py-2 px-3 bg-purple-100 text-purple-600 rounded-lg font-medium hover:bg-purple-200 transition-colors text-sm"
                     >
-                      Download PDF
+                      PDF
                     </button>
                     <button
                       onClick={() => handleDelete(worksheet.id)}

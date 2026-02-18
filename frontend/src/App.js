@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import WorksheetWizard from './pages/WorksheetWizard';
+import WorksheetView from './pages/WorksheetView';
 import Worksheets from './pages/Worksheets';
 import Teachers from './pages/Teachers';
 import Settings from './pages/Settings';
@@ -120,6 +121,7 @@ function AppRoutes() {
         } />
         <Route path="worksheets" element={<Worksheets />} />
         <Route path="worksheets/new" element={<WorksheetWizard />} />
+        <Route path="worksheets/:id" element={<WorksheetView />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       
