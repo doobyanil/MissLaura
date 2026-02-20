@@ -7,6 +7,15 @@ const { protect } = require('../middleware/auth');
 // All routes require authentication
 router.use(protect);
 
+// Create curriculum-grounded worksheet
+router.post('/curriculum', [
+  body('board').notEmpty().withMessage('Board is required'),
+  body('grade').notEmpty().withMessage('Grade is required'),
+  body('subject').notEmpty().withMessage('Subject is required'),
+  body('seedKeywords').isArray({ min: 1 }).withMessage('At least one seed keyword is required'),
+  body('chunks').isArray({ min: 1 }).withMessage('At least one content chunk is required')
+], worksheetController.createCurriculumWorksheet);
+
 // Create worksheet
 router.post('/', [
   body('curriculum').isIn(['INDIAN', 'IB', 'MONTESSORI']).withMessage('Invalid curriculum'),

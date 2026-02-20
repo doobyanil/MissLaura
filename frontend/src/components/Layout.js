@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Layout = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -17,11 +17,20 @@ const Layout = () => {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: '📊', adminOnly: false },
-    { path: '/worksheets', label: 'Worksheets', icon: '📝', adminOnly: false },
-    { path: '/worksheets/new', label: 'Create Worksheet', icon: '✨', adminOnly: false },
-    { path: '/teachers', label: 'Teachers', icon: '👨‍🏫', adminOnly: true },
-    { path: '/settings', label: 'Settings', icon: '⚙️', adminOnly: false }
+    { path: '/dashboard', label: 'Dashboard', icon: '📊', adminOnly: false, superAdminOnly: false },
+    { path: '/worksheets', label: 'Worksheets', icon: '📝', adminOnly: false, superAdminOnly: false },
+    { path: '/worksheets/new', label: 'Create Worksheet', icon: '✨', adminOnly: false, superAdminOnly: false },
+    { path: '/teachers', label: 'Teachers', icon: '👨‍🏫', adminOnly: true, superAdminOnly: false },
+    { path: '/settings', label: 'Settings', icon: '⚙️', adminOnly: false, superAdminOnly: false }
+  ];
+
+  const superAdminNavItems = [
+    { path: '/super-admin', label: 'Dashboard', icon: '📊' },
+    { path: '/super-admin/schools', label: 'Schools', icon: '🏫' },
+    { path: '/super-admin/plans', label: 'Plans', icon: '📋' },
+    { path: '/super-admin/textbooks', label: 'Textbooks', icon: '📚' },
+    { path: '/super-admin/usage', label: 'Usage', icon: '📈' },
+    { path: '/super-admin/audit-logs', label: 'Audit Logs', icon: '📝' }
   ];
 
   return (
@@ -42,22 +51,47 @@ const Layout = () => {
 
         {/* Navigation */}
         <nav className="p-4 space-y-2">
-          {navItems
-            .filter(item => !item.adminOnly || isAdmin)
-            .map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                  isActive(item.path)
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200'
-                    : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
-                }`}
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            ))}
+          {/* Super Admin Navigation */}
+          {isSuperAdmin ? (
+            <>
+              <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Super Admin
+              </div>
+              {superAdminNavItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    isActive(item.path)
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-200'
+                      : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                  }`}
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              ))}
+            </>
+          ) : (
+            <>
+              {navItems
+                .filter(item => !item.adminOnly || isAdmin)
+                .map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                      isActive(item.path)
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-200'
+                        : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                    }`}
+                  >
+                    <span className="text-xl">{item.icon}</span>
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                ))}
+            </>
+          )}
         </nav>
 
         {/* User Info */}

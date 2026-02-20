@@ -11,6 +11,7 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   TEACHER
 }
@@ -40,6 +41,7 @@ model School {
   
   users       User[]
   worksheets  Worksheet[]
+  subscription Subscription?
 }
 
 model User {
@@ -111,4 +113,355 @@ model Theme {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Curriculum-Grounded Worksheet Generation Models
+
+model Board {
+  id          String   @id @default(uuid())
+  name        String   @unique // CBSE, ICSE, State, etc.
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  books       Book[]
+}
+
+model Book {
+  id          String   @id @default(uuid())
+  boardId     String
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  grade       String   // e.g., "1", "2", ... "12"
+  subject     String   // Math, Science, English, etc.
+  title       String
+  edition     String?
+  publisher   String?
+  isbn        String?
+  filePath    String?  // Path to uploaded PDF
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  chapters    Chapter[]
+  chunks      ContentChunk[]
+  
+  @@index([boardId])
+  @@index([grade])
+  @@index([subject])
+  @@index([boardId, grade, subject])
+}
+
+model Chapter {
+  id          String   @id @default(uuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  number      Int      // Chapter number
+  title       String
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  chunks      ContentChunk[]
+  
+  @@index([bookId])
+  @@unique([bookId, number])
+}
+
+model ContentChunk {
+  id          String   @id @default(uuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapterId   String?
+  chapter     Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  
+  text        String   // Chunk content (500-1000 words target)
+  pageFrom    Int?     // Starting page number
+  pageTo      Int?     // Ending page number
+  chunkIndex  Int      // Order index within the book/chapter
+  
+  // For Phase 2: Vector embeddings
+  embedding   String?  // JSON array or vector string for pgvector
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([bookId])
+  @@index([chapterId])
+  @@index([bookId, chapterId])
+  // Full-text search is implemented via raw SQL queries in the controller
+  // PostgreSQL supports to_tsvector and to_tsquery for full-text search
+}
+
+// ============================================
+// SUPER ADMIN - Subscription & Billing Models
+// ============================================
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Subscription Plans (managed by Super Admin)
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  name            String   @unique // e.g., "Free", "Premium", "Enterprise"
+  displayName     String   // e.g., "Premium Plan"
+  description     String?
+  priceMonthly    Decimal  @db.Decimal(10, 2)
+  priceYearly     Decimal  @db.Decimal(10, 2)
+  currency        String   @default("INR")
+  
+  // Features/Limits
+  maxTeachers     Int      @default(1)
+  maxWorksheets   Int      @default(10)      // per month
+  maxAiCalls      Int      @default(100)     // per month
+  maxAiTokensPerMonth Int  @default(100000)  // Token quota per month
+  hasTextbookAccess Boolean @default(false)
+  hasMicrosoftForms Boolean @default(false)
+  hasCustomThemes Boolean  @default(false)
+  
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  subscriptions   Subscription[]
+}
+
+// School Subscriptions
+model Subscription {
+  id              String             @id @default(uuid())
+  schoolId        String             @unique
+  school          School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId          String
+  plan            SubscriptionPlan   @relation(fields: [planId], references: [id])
+  
+  status          SubscriptionStatus @default(TRIAL)
+  
+  // Dates
+  startDate       DateTime
+  endDate         DateTime
+  trialEndsAt     DateTime?
+  
+  // Current billing period for quota tracking
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  
+  // Billing
+  billingCycle    String             @default("monthly") // monthly, yearly
+  autoRenew       Boolean            @default(true)
+  
+  // Override limits (if manually set by Super Admin)
+  overrideMaxTeachers   Int?
+  overrideMaxWorksheets Int?
+  overrideMaxAiCalls    Int?
+  overrideMaxAiTokens   Int?          // Override token quota
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  payments        Payment[]
+  invoices        Invoice[]
+  usageLogs       UsageLog[]
+  
+  @@index([schoolId])
+  @@index([status])
+}
+
+// Payments
+model Payment {
+  id              String        @id @default(uuid())
+  subscriptionId  String
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
+  
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("INR")
+  status          PaymentStatus @default(PENDING)
+  
+  // Payment Gateway
+  gateway         String        // razorpay, stripe, etc.
+  gatewayPaymentId String?
+  gatewayOrderId   String?
+  gatewaySignature String?
+  
+  // Metadata
+  description     String?
+  paidAt          DateTime?
+  failedAt        DateTime?
+  refundedAt      DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+// Invoices
+model Invoice {
+  id              String       @id @default(uuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  
+  invoiceNumber   String       @unique
+  amount          Decimal      @db.Decimal(10, 2)
+  currency        String       @default("INR")
+  
+  status          String       @default("pending") // pending, paid, void
+  
+  issuedAt        DateTime
+  dueAt           DateTime
+  paidAt          DateTime?
+  
+  // PDF URL
+  pdfUrl          String?
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@index([subscriptionId])
+}
+
+// Usage Logging
+model UsageLog {
+  id              String       @id @default(uuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  
+  // What was used
+  action          String       // WORKSHEET_CREATED, AI_CALL, etc.
+  resource        String?      // Resource identifier
+  metadata        Json?        // Additional data
+  
+  // Cost tracking
+  aiModel         String?
+  aiTokensUsed    Int?
+  estimatedCost   Decimal?     @db.Decimal(10, 6)
+  
+  createdAt       DateTime     @default(now())
+  
+  @@index([subscriptionId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================
+// AI Usage Tracking - Detailed Token Logging
+// ============================================
+
+model AiUsageLog {
+  id              String    @id @default(uuid())
+  
+  // Who/What (nullable for system jobs)
+  schoolId        String?
+  userId          String?
+  
+  // What feature used AI
+  feature         String    // e.g., "worksheet_generation", "question_generation"
+  model           String    // e.g., "gpt-4", "gpt-3.5-turbo"
+  
+  // Token counts
+  inputTokens     Int       @default(0)
+  outputTokens    Int       @default(0)
+  totalTokens     Int       @default(0)
+  
+  // Cost calculation (in USD)
+  estimatedCost   Decimal?  @db.Decimal(10, 6)
+  
+  // Request tracking
+  requestId       String?   // For correlating with n8n/external systems
+  worksheetId     String?   // If applicable
+  
+  // Source indicator
+  source          String    @default("ai") // "ai" or "db_fallback"
+  
+  // Metadata
+  metadata        Json?     // Additional request/response data
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([schoolId, createdAt])
+  @@index([userId, createdAt])
+  @@index([feature, createdAt])
+  @@index([createdAt])
+}
+
+// Audit Logging for Super Admin actions
+model AuditLog {
+  id              String   @id @default(uuid())
+  
+  // Who performed the action
+  userId          String
+  userName        String
+  userRole        String
+  
+  // What action
+  action          String   // e.g., "SCHOOL_SUSPENDED", "PLAN_CHANGED", "USER_CREATED"
+  resource        String   // e.g., "School", "User", "Subscription"
+  resourceId      String?
+  
+  // Details
+  oldValues       Json?
+  newValues       Json?
+  description     String?
+  
+  // Request metadata
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// Feature Flags
+model FeatureFlag {
+  id              String   @id @default(uuid())
+  key             String   @unique // e.g., "curriculum_worksheet", "microsoft_forms"
+  name            String
+  description     String?
+  
+  // Who has access
+  enabledGlobally Boolean  @default(false)
+  enabledPlans    String[] // Array of plan IDs that have access
+  
+  // Rollout
+  rolloutPercentage Int?   @default(100) // For gradual rollout
+  
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// System Settings (key-value store for global config)
+model SystemSetting {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  value           String   // JSON string for complex values
+  description     String?
+  isPublic        Boolean  @default(false) // Whether to expose to frontend
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -11,10 +11,19 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import WorksheetWizard from './pages/WorksheetWizard';
+import CurriculumWorksheetWizard from './pages/CurriculumWorksheetWizard';
 import WorksheetView from './pages/WorksheetView';
 import Worksheets from './pages/Worksheets';
 import Teachers from './pages/Teachers';
 import Settings from './pages/Settings';
+
+// Super Admin Pages
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminSchools from './pages/SuperAdminSchools';
+import SuperAdminPlans from './pages/SuperAdminPlans';
+import SuperAdminTextbooks from './pages/SuperAdminTextbooks';
+import SuperAdminUsage from './pages/SuperAdminUsage';
+import SuperAdminAuditLogs from './pages/SuperAdminAuditLogs';
 
 // Components
 import Layout from './components/Layout';
@@ -51,6 +60,25 @@ const AdminRoute = ({ children }) => {
   }
   
   if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return children;
+};
+
+// Super Admin Route Component
+const SuperAdminRoute = ({ children }) => {
+  const { isSuperAdmin, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+  
+  if (!isSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -121,8 +149,41 @@ function AppRoutes() {
         } />
         <Route path="worksheets" element={<Worksheets />} />
         <Route path="worksheets/new" element={<WorksheetWizard />} />
+        <Route path="worksheets/curriculum" element={<CurriculumWorksheetWizard />} />
         <Route path="worksheets/:id" element={<WorksheetView />} />
         <Route path="settings" element={<Settings />} />
+        
+        {/* Super Admin Routes */}
+        <Route path="super-admin" element={
+          <SuperAdminRoute>
+            <SuperAdminDashboard />
+          </SuperAdminRoute>
+        } />
+        <Route path="super-admin/schools" element={
+          <SuperAdminRoute>
+            <SuperAdminSchools />
+          </SuperAdminRoute>
+        } />
+        <Route path="super-admin/plans" element={
+          <SuperAdminRoute>
+            <SuperAdminPlans />
+          </SuperAdminRoute>
+        } />
+        <Route path="super-admin/textbooks" element={
+          <SuperAdminRoute>
+            <SuperAdminTextbooks />
+          </SuperAdminRoute>
+        } />
+        <Route path="super-admin/usage" element={
+          <SuperAdminRoute>
+            <SuperAdminUsage />
+          </SuperAdminRoute>
+        } />
+        <Route path="super-admin/audit-logs" element={
+          <SuperAdminRoute>
+            <SuperAdminAuditLogs />
+          </SuperAdminRoute>
+        } />
       </Route>
       
       {/* Catch all */}

@@ -90,6 +90,15 @@ const Dashboard = () => {
         </Link>
 
         <Link
+          to="/worksheets/curriculum"
+          className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-6 text-white shadow-lg shadow-blue-200 card-hover group"
+        >
+          <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📚</div>
+          <h3 className="text-xl font-bold mb-1">Curriculum Worksheet</h3>
+          <p className="text-blue-100 text-sm">Generate from official textbooks</p>
+        </Link>
+
+        <Link
           to="/worksheets"
           className="bg-white rounded-2xl p-6 shadow-lg shadow-gray-100 card-hover border border-gray-100 group"
         >
@@ -97,8 +106,11 @@ const Dashboard = () => {
           <h3 className="text-xl font-bold text-gray-800 mb-1">My Worksheets</h3>
           <p className="text-gray-500 text-sm">View and manage your worksheets</p>
         </Link>
+      </div>
 
-        {isAdmin && (
+      {/* Admin Actions */}
+      {isAdmin && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
             to="/teachers"
             className="bg-white rounded-2xl p-6 shadow-lg shadow-gray-100 card-hover border border-gray-100 group"
@@ -107,8 +119,16 @@ const Dashboard = () => {
             <h3 className="text-xl font-bold text-gray-800 mb-1">Manage Teachers</h3>
             <p className="text-gray-500 text-sm">Add and manage teacher accounts</p>
           </Link>
-        )}
-      </div>
+          <Link
+            to="/admin"
+            className="bg-white rounded-2xl p-6 shadow-lg shadow-gray-100 card-hover border border-gray-100 group"
+          >
+            <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">⚙️</div>
+            <h3 className="text-xl font-bold text-gray-800 mb-1">Admin Settings</h3>
+            <p className="text-gray-500 text-sm">Manage school settings and content</p>
+          </Link>
+        </div>
+      )}
 
       {/* Stats Grid */}
       {stats && (

@@ -95,12 +95,20 @@ const Worksheets = () => {
             View and manage your generated worksheets
           </p>
         </div>
-        <Link
-          to="/worksheets/new"
-          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg shadow-purple-200 hover:shadow-xl hover:shadow-purple-300 transform hover:-translate-y-0.5 transition-all duration-200"
-        >
-          + Create New
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            to="/worksheets/curriculum"
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 transform hover:-translate-y-0.5 transition-all duration-200"
+          >
+            📚 Curriculum Worksheet
+          </Link>
+          <Link
+            to="/worksheets/new"
+            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg shadow-purple-200 hover:shadow-xl hover:shadow-purple-300 transform hover:-translate-y-0.5 transition-all duration-200"
+          >
+            + Create New
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

@@ -121,7 +121,8 @@ export const AuthProvider = ({ children }) => {
     forgotPassword,
     resetPassword,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'ADMIN',
+    isAdmin: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN',
+    isSuperAdmin: user?.role === 'SUPER_ADMIN',
     isTeacher: user?.role === 'TEACHER'
   };
 

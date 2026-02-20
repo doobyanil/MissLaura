@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract and validate request body\nconst body = $input.all()[0].json.body;\n\n// Required fields validation\nconst requiredFields = ['curriculum', 'grade', 'skill', 'theme'];\nconst missingFields = requiredFields.filter(field => !body[field]);\n\nif (missingFields.length > 0) {\n  return {\n    json: {\n      success: false,\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      statusCode: 400\n    }\n  };\n}\n\n// Build the AI prompt\nconst { curriculum, grade, ageGroup, skill, theme, questionCount = 8 } = body;\n\nconst prompt = `You are an expert educational content creator for ${curriculum} curriculum.\n\nCreate a worksheet for:\n- Grade Level: ${grade}\n- Age Group: ${ageGroup || '5-7 years'}\n- Skill: ${skill}\n- Theme: ${theme}\n\nGenerate exactly ${questionCount} age-appropriate questions or activities.\n\nIMPORTANT: Return ONLY valid JSON with this exact structure, no markdown, no explanation:\n{\n  \"title\": \"Engaging worksheet title related to the theme\",\n  \"instructions\": \"Clear instructions for the student\",\n  \"questions\": [\n    {\n      \"type\": \"multiple-choice|fill-blank|matching|tracing|counting|circle|draw\",\n      \"question\": \"The question or instruction text\",\n      \"options\": [\"A\", \"B\", \"C\", \"D\"],\n      \"correctAnswer\": \"A\",\n      \"imageUrl\": null\n    }\n  ],\n  \"footer\": \"Optional footer text\"\n}\n\nMake questions fun, engaging, and appropriate for the age group.\nFor preschool/KG: focus on tracing, matching, circling, counting with visuals.\nFor grades 1-2: simple sentences, basic math, word problems.\nFor grades 3-5: complex sentences, multi-step problems, critical thinking.`;\n\nreturn {\n  json: {\n    prompt,\n    originalRequest: body\n  }\n};"
+        "jsCode": "// Extract and validate request body\nconst body = $input.all()[0].json.body;\n\n// Required fields validation\nconst requiredFields = ['curriculum', 'grade', 'skill', 'theme'];\nconst missingFields = requiredFields.filter(field => !body[field]);\n\nif (missingFields.length > 0) {\n  return {\n    json: {\n      success: false,\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      statusCode: 400\n    }\n  };\n}\n\n// Build the AI prompt\nconst { curriculum, grade, ageGroup, skill, theme, questionCount = 8, schoolId, userId, requestId } = body;\n\nconst prompt = `You are an expert educational content creator for ${curriculum} curriculum.\n\nCreate a worksheet for:\n- Grade Level: ${grade}\n- Age Group: ${ageGroup || '5-7 years'}\n- Skill: ${skill}\n- Theme: ${theme}\n\nGenerate exactly ${questionCount} age-appropriate questions or activities.\n\nIMPORTANT: Return ONLY valid JSON with this exact structure, no markdown, no explanation:\n{\n  \"title\": \"Engaging worksheet title related to the theme\",\n  \"instructions\": \"Clear instructions for the student\",\n  \"questions\": [\n    {\n      \"type\": \"multiple-choice|fill-blank|matching|tracing|counting|circle|draw\",\n      \"question\": \"The question or instruction text\",\n      \"options\": [\"A\", \"B\", \"C\", \"D\"],\n      \"correctAnswer\": \"A\",\n      \"imageUrl\": null\n    }\n  ],\n  \"footer\": \"Optional footer text\"\n}\n\nMake questions fun, engaging, and appropriate for the age group.\nFor preschool/KG: focus on tracing, matching, circling, counting with visuals.\nFor grades 1-2: simple sentences, basic math, word problems.\nFor grades 3-5: complex sentences, multi-step problems, critical thinking.`;\n\nreturn {\n  json: {\n    prompt,\n    originalRequest: body,\n    schoolId: schoolId || null,\n    userId: userId || null,\n    requestId: requestId || null\n  }\n};"
       },
       "id": "build-prompt",
       "name": "Build AI Prompt",
@@ -108,13 +108,94 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse and validate AI response\nconst aiResponse = $input.all()[0].json.message?.content || $input.all()[0].json.choices?.[0]?.message?.content;\nconst originalRequest = $('Build AI Prompt').first().json.originalRequest;\n\nlet parsedContent;\nlet error = null;\n\ntry {\n  // Clean the response - remove markdown code blocks if present\n  let cleanedResponse = aiResponse.trim();\n  \n  // Remove markdown code blocks\n  cleanedResponse = cleanedResponse.replace(/^```json\\s*/i, '');\n  cleanedResponse = cleanedResponse.replace(/^```\\s*/i, '');\n  cleanedResponse = cleanedResponse.replace(/\\s*```$/i, '');\n  \n  parsedContent = JSON.parse(cleanedResponse);\n  \n  // Validate required fields\n  if (!parsedContent.title || typeof parsedContent.title !== 'string') {\n    throw new Error('Invalid or missing title');\n  }\n  \n  if (!parsedContent.instructions || typeof parsedContent.instructions !== 'string') {\n    throw new Error('Invalid or missing instructions');\n  }\n  \n  if (!Array.isArray(parsedContent.questions) || parsedContent.questions.length === 0) {\n    throw new Error('Invalid or missing questions array');\n  }\n  \n  // Validate each question\n  parsedContent.questions = parsedContent.questions.map((q, index) => {\n    if (!q.question || typeof q.question !== 'string') {\n      throw new Error(`Question ${index + 1} is invalid`);\n    }\n    \n    return {\n      type: q.type || 'multiple-choice',\n      question: q.question,\n      options: Array.isArray(q.options) ? q.options : [],\n      correctAnswer: q.correctAnswer || null,\n      imageUrl: q.imageUrl || null\n    };\n  });\n  \n} catch (e) {\n  error = `Failed to parse AI response: ${e.message}`;\n  console.error('JSON Parse Error:', e);\n  console.error('Raw response:', aiResponse);\n}\n\nif (error) {\n  return {\n    json: {\n      success: false,\n      error,\n      rawResponse: aiResponse,\n      statusCode: 422\n    }\n  };\n}\n\nreturn {\n  json: {\n    success: true,\n    content: {\n      title: parsedContent.title,\n      instructions: parsedContent.instructions,\n      questions: parsedContent.questions,\n      footer: parsedContent.footer || `${originalRequest.curriculum} - ${originalRequest.grade}`\n    },\n    metadata: {\n      curriculum: originalRequest.curriculum,\n      grade: originalRequest.grade,\n      skill: originalRequest.skill,\n      theme: originalRequest.theme,\n      generatedAt: new Date().toISOString(),\n      questionCount: parsedContent.questions.length\n    }\n  }\n};"
+        "jsCode": "// Extract usage data from OpenAI response\nconst aiResponse = $input.all()[0].json;\nconst originalData = $('Build AI Prompt').first().json;\n\n// OpenAI response structure varies by n8n version\n// Try multiple paths to find usage data\nconst usage = aiResponse.usage || \n             aiResponse.raw?.usage ||\n             aiResponse.data?.usage ||\n             { input_tokens: 0, output_tokens: 0, total_tokens: 0 };\n\n// Extract token counts (OpenAI uses different field names)\nconst inputTokens = usage.prompt_tokens || usage.input_tokens || 0;\nconst outputTokens = usage.completion_tokens || usage.output_tokens || 0;\nconst totalTokens = usage.total_tokens || (inputTokens + outputTokens);\n\n// Get model name\nconst model = aiResponse.model || 'gpt-4o-mini';\n\n// Get content\nconst content = aiResponse.message?.content || \n                aiResponse.choices?.[0]?.message?.content ||\n                aiResponse.content;\n\nreturn {\n  json: {\n    content,\n    usage: {\n      inputTokens,\n      outputTokens,\n      totalTokens\n    },\n    model,\n    schoolId: originalData.schoolId,\n    userId: originalData.userId,\n    requestId: originalData.requestId,\n    originalRequest: originalData.originalRequest\n  }\n};"
+      },
+      "id": "extract-usage",
+      "name": "Extract Usage Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse and validate AI response\nconst aiData = $input.all()[0].json;\nconst aiResponse = aiData.content;\nconst originalRequest = aiData.originalRequest;\nconst usage = aiData.usage;\nconst model = aiData.model;\n\nlet parsedContent;\nlet error = null;\n\ntry {\n  // Clean the response - remove markdown code blocks if present\n  let cleanedResponse = aiResponse.trim();\n  \n  // Remove markdown code blocks\n  cleanedResponse = cleanedResponse.replace(/^```json\\s*/i, '');\n  cleanedResponse = cleanedResponse.replace(/^```\\s*/i, '');\n  cleanedResponse = cleanedResponse.replace(/\\s*```$/i, '');\n  \n  parsedContent = JSON.parse(cleanedResponse);\n  \n  // Validate required fields\n  if (!parsedContent.title || typeof parsedContent.title !== 'string') {\n    throw new Error('Invalid or missing title');\n  }\n  \n  if (!parsedContent.instructions || typeof parsedContent.instructions !== 'string') {\n    throw new Error('Invalid or missing instructions');\n  }\n  \n  if (!Array.isArray(parsedContent.questions) || parsedContent.questions.length === 0) {\n    throw new Error('Invalid or missing questions array');\n  }\n  \n  // Validate each question\n  parsedContent.questions = parsedContent.questions.map((q, index) => {\n    if (!q.question || typeof q.question !== 'string') {\n      throw new Error(`Question ${index + 1} is invalid`);\n    }\n    \n    return {\n      type: q.type || 'multiple-choice',\n      question: q.question,\n      options: Array.isArray(q.options) ? q.options : [],\n      correctAnswer: q.correctAnswer || null,\n      imageUrl: q.imageUrl || null\n    };\n  });\n  \n} catch (e) {\n  error = `Failed to parse AI response: ${e.message}`;\n  console.error('JSON Parse Error:', e);\n  console.error('Raw response:', aiResponse);\n}\n\nif (error) {\n  return {\n    json: {\n      success: false,\n      error,\n      rawResponse: aiResponse,\n      statusCode: 422,\n      usage,\n      model,\n      schoolId: aiData.schoolId,\n      userId: aiData.userId,\n      requestId: aiData.requestId\n    }\n  };\n}\n\nreturn {\n  json: {\n    success: true,\n    content: {\n      title: parsedContent.title,\n      instructions: parsedContent.instructions,\n      questions: parsedContent.questions,\n      footer: parsedContent.footer || `${originalRequest.curriculum} - ${originalRequest.grade}`\n    },\n    metadata: {\n      curriculum: originalRequest.curriculum,\n      grade: originalRequest.grade,\n      skill: originalRequest.skill,\n      theme: originalRequest.theme,\n      generatedAt: new Date().toISOString(),\n      questionCount: parsedContent.questions.length\n    },\n    usage,\n    model,\n    schoolId: aiData.schoolId,\n    userId: aiData.userId,\n    requestId: aiData.requestId\n  }\n};"
       },
       "id": "validate-json",
       "name": "Validate JSON Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1050, 200]
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MISS_LAURA_API_URL || 'http://localhost:5000' }}/api/ai-usage/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "schoolId",
+              "value": "={{ $json.schoolId }}"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "feature",
+              "value": "worksheet_generation"
+            },
+            {
+              "name": "model",
+              "value": "={{ $json.model }}"
+            },
+            {
+              "name": "inputTokens",
+              "value": "={{ $json.usage.inputTokens }}"
+            },
+            {
+              "name": "outputTokens",
+              "value": "={{ $json.usage.outputTokens }}"
+            },
+            {
+              "name": "totalTokens",
+              "value": "={{ $json.usage.totalTokens }}"
+            },
+            {
+              "name": "requestId",
+              "value": "={{ $json.requestId }}"
+            },
+            {
+              "name": "source",
+              "value": "ai"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-usage",
+      "name": "Log AI Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "internal-api-key",
+          "name": "Miss Laura Internal API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return the final response, removing internal tracking data\nconst data = $input.all()[0].json;\nconst validatedData = $('Validate JSON Response').first().json;\n\nreturn {\n  json: {\n    success: true,\n    content: validatedData.content,\n    metadata: validatedData.metadata\n  }\n};"
+      },
+      "id": "final-response",
+      "name": "Prepare Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 200]
     },
     {
       "parameters": {
@@ -135,7 +216,7 @@
       "name": "Success Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1250, 200]
+      "position": [1850, 200]
     },
     {
       "parameters": {
@@ -157,7 +238,7 @@
       "name": "Error Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1250, 450]
+      "position": [1850, 450]
     },
     {
       "parameters": {
@@ -186,6 +267,71 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 2,
       "position": [850, 350]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MISS_LAURA_API_URL || 'http://localhost:5000' }}/api/ai-usage/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "schoolId",
+              "value": "={{ $json.schoolId }}"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "feature",
+              "value": "worksheet_generation"
+            },
+            {
+              "name": "model",
+              "value": "={{ $json.model }}"
+            },
+            {
+              "name": "inputTokens",
+              "value": "={{ $json.usage?.inputTokens || 0 }}"
+            },
+            {
+              "name": "outputTokens",
+              "value": "={{ $json.usage?.outputTokens || 0 }}"
+            },
+            {
+              "name": "totalTokens",
+              "value": "={{ $json.usage?.totalTokens || 0 }}"
+            },
+            {
+              "name": "requestId",
+              "value": "={{ $json.requestId }}"
+            },
+            {
+              "name": "source",
+              "value": "ai"
+            },
+            {
+              "name": "metadata",
+              "value": "={{ { error: $json.error } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-error-usage",
+      "name": "Log Error Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 350],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "internal-api-key",
+          "name": "Miss Laura Internal API Key"
+        }
+      }
     }
   ],
   "connections": {
@@ -244,6 +390,17 @@
       "main": [
         [
           {
+            "node": "Extract Usage Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Usage Data": {
+      "main": [
+        [
+          {
             "node": "Validate JSON Response",
             "type": "main",
             "index": 0
@@ -252,6 +409,35 @@
       ]
     },
     "Validate JSON Response": {
+      "main": [
+        [
+          {
+            "node": "Log AI Usage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log AI Usage": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Response": {
       "main": [
         [
           {
@@ -272,6 +458,17 @@
           }
         ]
       ]
+    },
+    "Log Error Usage": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -283,6 +480,6 @@
   "staticData": null,
   "tags": [],
   "triggerCount": 0,
-  "updatedAt": "2026-02-17T00:00:00.000Z",
-  "versionId": "1"
+  "updatedAt": "2026-02-19T00:00:00.000Z",
+  "versionId": "2"
 }

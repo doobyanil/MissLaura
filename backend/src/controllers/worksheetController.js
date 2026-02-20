@@ -763,127 +763,176 @@ function generateWorksheetHTML(worksheet, showAnswers) {
 
   let itemsHTML = '';
 
-  switch (worksheet.content.type) {
-    case 'counting':
-      itemsHTML = worksheet.content.items.map((item, i) => `
-        <div class="item">
-          <div class="item-number">${i + 1}.</div>
-          <div class="item-display">${item.display}</div>
-          <div class="answer-box"></div>
-        </div>
-      `).join('');
-      break;
+  // Check if this is a curriculum worksheet (has questions array instead of type)
+  const isCurriculumWorksheet = worksheet.content.questions && Array.isArray(worksheet.content.questions);
 
-    case 'addition':
-    case 'subtraction':
-    case 'multiplication':
-      const operator = worksheet.content.type === 'addition' ? '+' : 
-                      worksheet.content.type === 'subtraction' ? '−' : '×';
-      itemsHTML = `<div class="math-grid">` + worksheet.content.items.map((item, i) => `
-        <div class="math-problem">
-          <span class="problem-number">${i + 1}.</span>
-          <span class="problem">${item.a} ${operator} ${item.b} = </span>
-          <span class="answer">${showAnswers ? item.answer : '____'}</span>
-        </div>
-      `).join('') + `</div>`;
-      break;
-
-    case 'letterRecognition':
-    case 'phonics':
-      itemsHTML = worksheet.content.items.map((item, i) => `
-        <div class="letter-section">
-          <div class="letter-header">Letter: <strong>${item.letter || item.sound}</strong></div>
-          <div class="words-list">
-            ${item.words.map(word => `<span class="word">${word}</span>`).join('')}
+  if (isCurriculumWorksheet) {
+    // Handle curriculum worksheets with questions array
+    itemsHTML = worksheet.content.questions.map((item, i) => {
+      let questionHTML = `
+        <div class="curriculum-question">
+          <div class="question-number">${i + 1}.</div>
+          <div class="question-content">
+            <div class="question-text">${item.question}</div>`;
+      
+      // Handle different question types
+      if (item.type === 'multiple-choice' && item.options) {
+        questionHTML += `
+            <div class="options-list">
+              ${item.options.map((opt, oi) => `
+                <div class="option">
+                  <span class="option-letter">${String.fromCharCode(65 + oi)}.</span>
+                  <span class="option-text">${opt}</span>
+                </div>
+              `).join('')}
+            </div>`;
+      } else if (item.type === 'true-false') {
+        questionHTML += `
+            <div class="options-list">
+              <div class="option"><span class="option-letter">A.</span> <span class="option-text">True</span></div>
+              <div class="option"><span class="option-letter">B.</span> <span class="option-text">False</span></div>
+            </div>`;
+      } else if (item.type === 'fill-blank') {
+        questionHTML += `
+            <div class="answer-line">Answer: ${showAnswers ? item.answer : '________________________'}</div>`;
+      } else if (item.type === 'short-answer') {
+        questionHTML += `
+            <div class="answer-lines">
+              <div class="answer-line"></div>
+              <div class="answer-line"></div>
+              <div class="answer-line"></div>
+            </div>`;
+      }
+      
+      questionHTML += `
           </div>
-        </div>
-      `).join('');
-      break;
-
-    case 'tracing':
-    case 'sightWords':
-      itemsHTML = `<div class="tracing-grid">` + worksheet.content.items.map((item, i) => `
-        <div class="tracing-item">
-          <div class="tracing-letter">${item.letter || item.word}</div>
-          ${item.lowercase ? `<div class="tracing-letter lowercase">${item.lowercase}</div>` : ''}
-          ${item.uppercase ? `<div class="tracing-letter lowercase">${item.uppercase}</div>` : ''}
-        </div>
-      `).join('') + `</div>`;
-      break;
-
-    case 'matching':
-      itemsHTML = `<div class="matching-container">
-        <div class="matching-column">
-          ${worksheet.content.items.map((item, i) => `<div class="matching-item">${item.left}</div>`).join('')}
-        </div>
-        <div class="matching-lines"></div>
-        <div class="matching-column">
-          ${worksheet.content.items.map((item, i) => `<div class="matching-item">${item.right}</div>`).join('')}
-        </div>
-      </div>`;
-      break;
-
-    case 'patterns':
-      itemsHTML = worksheet.content.items.map((item, i) => `
-        <div class="pattern-item">
-          <span class="pattern-number">${i + 1}.</span>
-          <div class="pattern-sequence">
-            ${item.sequence.map(s => `<span class="pattern-element">${s}</span>`).join('')}
+        </div>`;
+      return questionHTML;
+    }).join('');
+  } else {
+    // Handle regular worksheets with type
+    switch (worksheet.content.type) {
+      case 'counting':
+        itemsHTML = worksheet.content.items.map((item, i) => `
+          <div class="item">
+            <div class="item-number">${i + 1}.</div>
+            <div class="item-display">${item.display}</div>
+            <div class="answer-box"></div>
           </div>
-        </div>
-      `).join('');
-      break;
+        `).join('');
+        break;
 
-    case 'shapes':
-    case 'colors':
-      itemsHTML = `<div class="shapes-grid">` + worksheet.content.items.map((item, i) => `
-        <div class="shape-item">
-          <div class="shape-emoji">${item.emoji}</div>
-          <div class="shape-name">${item.name}</div>
-        </div>
-      `).join('') + `</div>`;
-      break;
-
-    case 'cvcWords':
-      itemsHTML = `<div class="cvc-grid">` + worksheet.content.items.map((item, i) => `
-        <div class="cvc-item">
-          <div class="cvc-picture">${item.picture}</div>
-          <div class="cvc-boxes">
-            ${item.letters.map(l => `<div class="cvc-box">${showAnswers ? l : ''}</div>`).join('')}
+      case 'addition':
+      case 'subtraction':
+      case 'multiplication':
+        const operator = worksheet.content.type === 'addition' ? '+' : 
+                        worksheet.content.type === 'subtraction' ? '−' : '×';
+        itemsHTML = `<div class="math-grid">` + worksheet.content.items.map((item, i) => `
+          <div class="math-problem">
+            <span class="problem-number">${i + 1}.</span>
+            <span class="problem">${item.a} ${operator} ${item.b} = </span>
+            <span class="answer">${showAnswers ? item.answer : '____'}</span>
           </div>
-        </div>
-      `).join('') + `</div>`;
-      break;
+        `).join('') + `</div>`;
+        break;
 
-    case 'wordProblems':
-      itemsHTML = worksheet.content.items.map((item, i) => `
-        <div class="word-problem">
-          <div class="problem-number">${i + 1}.</div>
-          <div class="problem-text">${item.problem}</div>
-          <div class="answer-line">Answer: ${showAnswers ? item.answer : '______'}</div>
-        </div>
-      `).join('');
-      break;
-
-    case 'sentences':
-      itemsHTML = worksheet.content.items.map((item, i) => `
-        <div class="sentence-item">
-          <div class="sentence-number">${i + 1}.</div>
-          <div class="sentence-words">
-            ${item.shuffled.map(w => `<span class="word-box">${w}</span>`).join('')}
+      case 'letterRecognition':
+      case 'phonics':
+        itemsHTML = worksheet.content.items.map((item, i) => `
+          <div class="letter-section">
+            <div class="letter-header">Letter: <strong>${item.letter || item.sound}</strong></div>
+            <div class="words-list">
+              ${item.words.map(word => `<span class="word">${word}</span>`).join('')}
+            </div>
           </div>
-          <div class="answer-line">Answer: ${showAnswers ? item.sentence : '____________________'}</div>
-        </div>
-      `).join('');
-      break;
+        `).join('');
+        break;
 
-    default:
-      itemsHTML = worksheet.content.items?.map((item, i) => `
-        <div class="item">
-          <div class="item-number">${i + 1}.</div>
-          <div class="item-content">${item.question || item.instruction || ''}</div>
-        </div>
-      `).join('') || '<div class="item">No content available</div>';
+      case 'tracing':
+      case 'sightWords':
+        itemsHTML = `<div class="tracing-grid">` + worksheet.content.items.map((item, i) => `
+          <div class="tracing-item">
+            <div class="tracing-letter">${item.letter || item.word}</div>
+            ${item.lowercase ? `<div class="tracing-letter lowercase">${item.lowercase}</div>` : ''}
+            ${item.uppercase ? `<div class="tracing-letter lowercase">${item.uppercase}</div>` : ''}
+          </div>
+        `).join('') + `</div>`;
+        break;
+
+      case 'matching':
+        itemsHTML = `<div class="matching-container">
+          <div class="matching-column">
+            ${worksheet.content.items.map((item, i) => `<div class="matching-item">${item.left}</div>`).join('')}
+          </div>
+          <div class="matching-lines"></div>
+          <div class="matching-column">
+            ${worksheet.content.items.map((item, i) => `<div class="matching-item">${item.right}</div>`).join('')}
+          </div>
+        </div>`;
+        break;
+
+      case 'patterns':
+        itemsHTML = worksheet.content.items.map((item, i) => `
+          <div class="pattern-item">
+            <span class="pattern-number">${i + 1}.</span>
+            <div class="pattern-sequence">
+              ${item.sequence.map(s => `<span class="pattern-element">${s}</span>`).join('')}
+            </div>
+          </div>
+        `).join('');
+        break;
+
+      case 'shapes':
+      case 'colors':
+        itemsHTML = `<div class="shapes-grid">` + worksheet.content.items.map((item, i) => `
+          <div class="shape-item">
+            <div class="shape-emoji">${item.emoji}</div>
+            <div class="shape-name">${item.name}</div>
+          </div>
+        `).join('') + `</div>`;
+        break;
+
+      case 'cvcWords':
+        itemsHTML = `<div class="cvc-grid">` + worksheet.content.items.map((item, i) => `
+          <div class="cvc-item">
+            <div class="cvc-picture">${item.picture}</div>
+            <div class="cvc-boxes">
+              ${item.letters.map(l => `<div class="cvc-box">${showAnswers ? l : ''}</div>`).join('')}
+            </div>
+          </div>
+        `).join('') + `</div>`;
+        break;
+
+      case 'wordProblems':
+        itemsHTML = worksheet.content.items.map((item, i) => `
+          <div class="word-problem">
+            <div class="problem-number">${i + 1}.</div>
+            <div class="problem-text">${item.problem}</div>
+            <div class="answer-line">Answer: ${showAnswers ? item.answer : '______'}</div>
+          </div>
+        `).join('');
+        break;
+
+      case 'sentences':
+        itemsHTML = worksheet.content.items.map((item, i) => `
+          <div class="sentence-item">
+            <div class="sentence-number">${i + 1}.</div>
+            <div class="sentence-words">
+              ${item.shuffled.map(w => `<span class="word-box">${w}</span>`).join('')}
+            </div>
+            <div class="answer-line">Answer: ${showAnswers ? item.sentence : '____________________'}</div>
+          </div>
+        `).join('');
+        break;
+
+      default:
+        itemsHTML = worksheet.content.items?.map((item, i) => `
+          <div class="item">
+            <div class="item-number">${i + 1}.</div>
+            <div class="item-content">${item.question || item.instruction || ''}</div>
+          </div>
+        `).join('') || '<div class="item">No content available</div>';
+    }
   }
 
   return `
@@ -893,19 +942,62 @@ function generateWorksheetHTML(worksheet, showAnswers) {
       <meta charset="utf-8">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Ruled Paper Stationery Style */
         body {
           font-family: 'Comic Sans MS', 'Chalkboard', cursive, sans-serif;
           font-size: 16px;
-          line-height: 1.6;
+          line-height: 32px;
           color: #333;
+          background: #fff;
+          position: relative;
         }
+        
+        /* Red margin line */
+        body::before {
+          content: '';
+          position: fixed;
+          left: 60px;
+          top: 0;
+          bottom: 0;
+          width: 2px;
+          background: #e53935;
+          z-index: 100;
+        }
+        
+        /* Blue horizontal ruled lines */
+        body::after {
+          content: '';
+          position: fixed;
+          left: 0;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          background: repeating-linear-gradient(
+            transparent,
+            transparent 31px,
+            #9ecef5 31px,
+            #9ecef5 32px
+          );
+          z-index: -1;
+          pointer-events: none;
+        }
+        
+        .page-container {
+          padding: 20px 20px 20px 80px;
+          min-height: 100vh;
+        }
+        
         .header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-bottom: 15px;
-          border-bottom: 3px solid #6366f1;
+          padding: 15px 20px;
+          margin-left: -60px;
           margin-bottom: 20px;
+          background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+          border-bottom: 3px solid #6366f1;
+          border-radius: 0;
         }
         .school-info {
           display: flex;
@@ -923,34 +1015,63 @@ function generateWorksheetHTML(worksheet, showAnswers) {
           color: #4f46e5;
         }
         .worksheet-title {
-          font-size: 24px;
+          font-size: 28px;
           color: #7c3aed;
           text-align: center;
-          margin-bottom: 10px;
+          margin: 20px 0 15px 0;
+          margin-left: -60px;
+          padding: 10px;
+          background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+          border-radius: 8px;
         }
         .worksheet-info {
           display: flex;
           justify-content: space-between;
-          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-          padding: 10px 15px;
-          border-radius: 10px;
-          margin-bottom: 20px;
+          flex-wrap: wrap;
+          gap: 10px;
+          padding: 12px 15px;
+          margin-left: -60px;
+          margin-bottom: 25px;
           font-size: 14px;
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border-radius: 8px;
+          border: 2px dashed #f59e0b;
+        }
+        .worksheet-info span {
+          background: white;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-weight: 500;
         }
         .instructions {
-          background: #fef3c7;
-          padding: 15px;
-          border-radius: 10px;
-          margin-bottom: 20px;
-          border-left: 4px solid #f59e0b;
+          background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+          padding: 15px 20px;
+          margin-left: -60px;
+          margin-bottom: 30px;
+          border-radius: 8px;
+          border-left: 4px solid #10b981;
+          line-height: 1.8;
         }
+        .instructions strong {
+          color: #059669;
+        }
+        
+        /* Content area with proper line spacing for ruled paper */
+        .content {
+          margin-top: 20px;
+        }
+        
         .item {
           display: flex;
           align-items: center;
-          padding: 15px;
-          margin-bottom: 10px;
-          background: #f8fafc;
+          padding: 12px 15px;
+          margin-bottom: 16px;
+          margin-left: -60px;
+          padding-left: 75px;
+          background: rgba(255, 255, 255, 0.9);
           border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          min-height: 48px;
         }
         .item-number {
           font-weight: bold;
@@ -964,242 +1085,369 @@ function generateWorksheetHTML(worksheet, showAnswers) {
           letter-spacing: 5px;
         }
         .answer-box {
-          width: 50px;
-          height: 30px;
+          width: 60px;
+          height: 36px;
           border: 2px solid #6366f1;
           border-radius: 5px;
           margin-left: auto;
+          background: white;
         }
         .math-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 15px;
+          gap: 20px;
+          margin-left: -60px;
         }
         .math-problem {
-          background: #f0fdf4;
-          padding: 15px;
+          background: rgba(255, 255, 255, 0.95);
+          padding: 20px;
           border-radius: 8px;
           text-align: center;
-          font-size: 18px;
+          font-size: 20px;
+          border: 2px solid #10b981;
+          min-height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .problem-number {
+          color: #6366f1;
+          font-weight: bold;
         }
         .answer {
           font-weight: bold;
           color: ${showAnswers ? '#059669' : '#ccc'};
+          min-width: 40px;
+          display: inline-block;
+          border-bottom: 2px solid ${showAnswers ? 'transparent' : '#ccc'};
         }
         .letter-section {
-          background: #fdf4ff;
-          padding: 15px;
-          margin-bottom: 15px;
+          background: rgba(255, 255, 255, 0.95);
+          padding: 20px;
+          margin-bottom: 20px;
+          margin-left: -60px;
+          padding-left: 75px;
           border-radius: 8px;
+          border: 2px solid #d946ef;
         }
         .letter-header {
-          font-size: 20px;
-          margin-bottom: 10px;
+          font-size: 22px;
+          margin-bottom: 15px;
+          color: #a855f7;
         }
         .words-list {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          gap: 12px;
         }
         .word {
           background: white;
-          padding: 5px 15px;
+          padding: 8px 18px;
           border-radius: 20px;
           border: 2px solid #d946ef;
+          font-size: 16px;
         }
         .word-box {
           background: white;
-          padding: 8px 15px;
+          padding: 10px 18px;
           border-radius: 8px;
           border: 2px solid #6366f1;
           margin: 5px;
           display: inline-block;
+          font-size: 16px;
         }
         .tracing-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
+          gap: 25px;
+          margin-left: -60px;
         }
         .tracing-item {
           text-align: center;
-          padding: 20px;
-          background: #fff7ed;
+          padding: 25px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 10px;
+          border: 2px solid #f97316;
         }
         .tracing-letter {
-          font-size: 48px;
+          font-size: 56px;
           font-weight: bold;
           color: #ea580c;
           font-family: 'Arial', sans-serif;
         }
         .lowercase {
-          font-size: 36px;
+          font-size: 42px;
           color: #f97316;
         }
         .matching-container {
           display: flex;
           justify-content: space-between;
-          padding: 20px;
+          padding: 25px;
+          margin-left: -60px;
+          background: rgba(255, 255, 255, 0.9);
+          border-radius: 8px;
         }
         .matching-column {
           display: flex;
           flex-direction: column;
-          gap: 15px;
+          gap: 20px;
         }
         .matching-item {
-          background: #ecfdf5;
-          padding: 10px 20px;
+          background: white;
+          padding: 12px 25px;
           border-radius: 8px;
           border: 2px solid #10b981;
-          font-size: 24px;
+          font-size: 22px;
+          text-align: center;
         }
         .pattern-item {
           display: flex;
           align-items: center;
-          padding: 15px;
-          margin-bottom: 10px;
-          background: #fef2f2;
+          padding: 15px 20px;
+          margin-bottom: 16px;
+          margin-left: -60px;
+          padding-left: 75px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 8px;
+          border: 2px solid #ef4444;
+          min-height: 48px;
         }
         .pattern-sequence {
           display: flex;
-          gap: 10px;
+          gap: 12px;
           margin-left: 15px;
         }
         .pattern-element {
           background: white;
-          padding: 5px 15px;
+          padding: 8px 18px;
           border-radius: 5px;
           border: 2px solid #ef4444;
-          font-size: 20px;
+          font-size: 22px;
         }
         .shapes-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
+          gap: 25px;
+          margin-left: -60px;
         }
         .shape-item {
           text-align: center;
-          padding: 20px;
-          background: #f0f9ff;
+          padding: 25px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 10px;
+          border: 2px solid #0369a1;
         }
         .shape-emoji {
-          font-size: 48px;
-          margin-bottom: 10px;
+          font-size: 56px;
+          margin-bottom: 12px;
         }
         .shape-name {
           font-weight: bold;
           color: #0369a1;
+          font-size: 18px;
         }
         .cvc-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
+          gap: 25px;
+          margin-left: -60px;
         }
         .cvc-item {
           text-align: center;
-          padding: 15px;
-          background: #fdf4ff;
+          padding: 20px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 10px;
+          border: 2px solid #d946ef;
         }
         .cvc-picture {
-          font-size: 48px;
-          margin-bottom: 10px;
+          font-size: 56px;
+          margin-bottom: 12px;
         }
         .cvc-boxes {
           display: flex;
           justify-content: center;
-          gap: 5px;
+          gap: 8px;
         }
         .cvc-box {
-          width: 40px;
-          height: 40px;
+          width: 45px;
+          height: 45px;
           border: 2px solid #d946ef;
           border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: bold;
-          font-size: 20px;
+          font-size: 22px;
+          background: white;
         }
         .word-problem {
-          padding: 15px;
-          margin-bottom: 15px;
-          background: #f0fdf4;
+          padding: 20px;
+          margin-bottom: 20px;
+          margin-left: -60px;
+          padding-left: 75px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 8px;
+          border: 2px solid #10b981;
         }
         .problem-text {
-          margin: 10px 0;
+          margin: 12px 0;
           font-size: 16px;
+          line-height: 1.8;
         }
         .answer-line {
-          margin-top: 10px;
+          margin-top: 15px;
           font-weight: bold;
           color: #059669;
         }
-        .sentence-item {
-          padding: 15px;
-          margin-bottom: 15px;
-          background: #fef3c7;
+        
+        /* Curriculum worksheet styles */
+        .curriculum-question {
+          padding: 20px;
+          margin-bottom: 24px;
+          margin-left: -60px;
+          padding-left: 75px;
+          background: rgba(255, 255, 255, 0.95);
           border-radius: 8px;
+          border: 2px solid #6366f1;
+          min-height: 64px;
+        }
+        .question-content {
+          flex: 1;
+        }
+        .question-text {
+          font-size: 16px;
+          line-height: 1.8;
+          margin-bottom: 12px;
+        }
+        .options-list {
+          margin-top: 12px;
+          padding-left: 20px;
+        }
+        .option {
+          padding: 8px 12px;
+          margin-bottom: 8px;
+          background: white;
+          border-radius: 5px;
+          border: 1px solid #e5e7eb;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .option-letter {
+          font-weight: bold;
+          color: #6366f1;
+          min-width: 25px;
+        }
+        .option-text {
+          flex: 1;
+        }
+        .answer-lines {
+          margin-top: 15px;
+        }
+        .answer-lines .answer-line {
+          height: 32px;
+          border-bottom: 1px solid #9ecef5;
+          margin-bottom: 8px;
+        }
+        
+        .sentence-item {
+          padding: 20px;
+          margin-bottom: 20px;
+          margin-left: -60px;
+          padding-left: 75px;
+          background: rgba(255, 255, 255, 0.95);
+          border-radius: 8px;
+          border: 2px solid #f59e0b;
         }
         .sentence-words {
-          margin: 10px 0;
+          margin: 12px 0;
         }
         .footer {
           position: fixed;
-          bottom: 20px;
-          left: 20px;
-          right: 20px;
+          bottom: 0;
+          left: 0;
+          right: 0;
           text-align: center;
-          font-size: 12px;
+          font-size: 11px;
           color: #666;
+          background: rgba(255, 255, 255, 0.95);
+          padding: 10px;
           border-top: 1px solid #ddd;
-          padding-top: 10px;
         }
         .watermark {
           position: fixed;
-          bottom: 50px;
+          bottom: 40px;
           right: 20px;
           font-size: 10px;
-          color: #ccc;
-          background: #f9f9f9;
-          padding: 5px 10px;
+          color: #999;
+          background: rgba(255, 255, 255, 0.9);
+          padding: 5px 12px;
           border-radius: 5px;
+          border: 1px solid #e5e7eb;
+        }
+        
+        /* Writing lines for answer spaces */
+        .writing-line {
+          display: inline-block;
+          min-width: 100px;
+          border-bottom: 2px dotted #9ecef5;
+          height: 24px;
+          vertical-align: bottom;
+        }
+        
+        /* Question container for ruled paper */
+        .question-row {
+          margin-left: -60px;
+          padding-left: 75px;
+          padding: 16px 15px 16px 75px;
+          background: rgba(255, 255, 255, 0.85);
+          margin-bottom: 8px;
+          min-height: 64px;
+          display: flex;
+          align-items: center;
+        }
+        
+        @media print {
+          body::before, body::after {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <div class="school-info">
-          ${logoUrl ? `<img src="${logoUrl}" class="school-logo" alt="School Logo">` : ''}
-          <div class="school-name">${school.name}</div>
+      <div class="page-container">
+        <div class="header">
+          <div class="school-info">
+            ${logoUrl ? `<img src="${logoUrl}" class="school-logo" alt="School Logo">` : ''}
+            <div class="school-name">${school.name}</div>
+          </div>
+          <div style="font-size: 12px; color: #666;">Miss Laura Worksheets</div>
         </div>
-        <div style="font-size: 12px; color: #666;">Miss Laura Worksheets</div>
-      </div>
-      
-      <h1 class="worksheet-title">${worksheet.title}</h1>
-      
-      <div class="worksheet-info">
-        <span>Curriculum: ${worksheet.curriculum}</span>
-        <span>Grade: ${worksheet.grade}</span>
-        <span>Skill: ${worksheet.skill}</span>
-        ${worksheet.theme ? `<span>Theme: ${worksheet.theme}</span>` : ''}
-      </div>
-      
-      <div class="instructions">
-        <strong>Instructions:</strong> ${worksheet.content.instructions}
-      </div>
-      
-      <div class="content">
-        ${itemsHTML}
-      </div>
-      
-      ${isFreePlan ? '<div class="watermark">Created with Miss Laura - Free Plan</div>' : ''}
-      
-      <div class="footer">
-        Generated by Miss Laura Worksheet Platform | ${new Date().toLocaleDateString()}
+        
+        <h1 class="worksheet-title">${worksheet.title}</h1>
+        
+        <div class="worksheet-info">
+          <span>📚 Curriculum: ${worksheet.curriculum}</span>
+          <span>🎓 Grade: ${worksheet.grade}</span>
+          <span>✏️ Skill: ${worksheet.skill}</span>
+          ${worksheet.theme ? `<span>🎨 Theme: ${worksheet.theme}</span>` : ''}
+        </div>
+        
+        <div class="instructions">
+          <strong>📝 Instructions:</strong> ${worksheet.content.instructions}
+        </div>
+        
+        <div class="content">
+          ${itemsHTML}
+        </div>
+        
+        ${isFreePlan ? '<div class="watermark">Created with Miss Laura - Free Plan</div>' : ''}
+        
+        <div class="footer">
+          Generated by Miss Laura Worksheet Platform | ${new Date().toLocaleDateString()}
+        </div>
       </div>
     </body>
     </html>
@@ -1273,6 +1521,192 @@ const downloadFormsCSV = async (req, res, next) => {
   }
 };
 
+// Create curriculum-grounded worksheet
+const createCurriculumWorksheet = async (req, res, next) => {
+  try {
+    const {
+      board,
+      grade,
+      subject,
+      chapter,
+      seedKeywords,
+      numQuestions = 10,
+      chunks,
+      title
+    } = req.body;
+
+    // Validate required fields
+    if (!board || !grade || !subject || !seedKeywords || !chunks) {
+      return next(new AppError('Board, grade, subject, seedKeywords, and chunks are required', 400));
+    }
+
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+      return next(new AppError('At least one content chunk is required', 400));
+    }
+
+    // Check usage limit
+    const usageCheck = await checkUsageLimit(req.user.schoolId);
+    if (!usageCheck.allowed) {
+      return next(new AppError(
+        `Monthly worksheet limit reached (${usageCheck.limit}). Please upgrade your plan.`,
+        403
+      ));
+    }
+
+    let worksheetContent;
+
+    // Use n8n for AI-powered generation if enabled
+    if (USE_N8N) {
+      try {
+        worksheetContent = await n8nService.generateCurriculumWorksheet({
+          board,
+          grade,
+          subject,
+          chapter,
+          seedKeywords,
+          numQuestions,
+          chunks
+        });
+      } catch (n8nError) {
+        console.error('n8n generation failed:', n8nError.message);
+        // Fall back to template-based generation
+        worksheetContent = generateFallbackCurriculumContent({
+          board,
+          grade,
+          subject,
+          chapter,
+          seedKeywords,
+          numQuestions,
+          chunks
+        });
+      }
+    } else {
+      // Use fallback content
+      worksheetContent = generateFallbackCurriculumContent({
+        board,
+        grade,
+        subject,
+        chapter,
+        seedKeywords,
+        numQuestions,
+        chunks
+      });
+    }
+
+    // Create worksheet in database
+    const worksheet = await prisma.worksheet.create({
+      data: {
+        schoolId: req.user.schoolId,
+        title: title || `${subject} - ${chapter || grade}`,
+        curriculum: board,
+        grade,
+        skill: subject,
+        theme: chapter || '',
+        content: worksheetContent,
+        metadata: {
+          board,
+          grade,
+          subject,
+          chapter,
+          seedKeywords,
+          chunksUsed: chunks.length,
+          generatedAt: new Date().toISOString(),
+          type: 'curriculum-grounded'
+        }
+      }
+    });
+
+    console.log(`[Curriculum Worksheet] Created: ${worksheet.id} for school ${req.user.schoolId}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Worksheet created successfully',
+      worksheet
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Generate fallback curriculum content
+function generateFallbackCurriculumContent(params) {
+  const { board, grade, subject, chapter, seedKeywords, numQuestions, chunks } = params;
+  
+  // Create questions based on keywords and context
+  const questions = [];
+  const questionTypes = ['multiple-choice', 'fill-blank', 'short-answer', 'true-false'];
+  
+  // Extract some context from chunks
+  const contextText = chunks.map(c => c.text).join(' ').substring(0, 2000);
+  
+  for (let i = 0; i < numQuestions; i++) {
+    const type = questionTypes[i % questionTypes.length];
+    const keyword = seedKeywords[i % seedKeywords.length];
+    
+    let question;
+    switch (type) {
+      case 'multiple-choice':
+        question = {
+          type: 'multiple-choice',
+          question: `Which of the following best describes ${keyword}?`,
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          correctAnswer: 0,
+          explanation: `This question is about ${keyword}.`
+        };
+        break;
+      case 'fill-blank':
+        question = {
+          type: 'fill-blank',
+          question: `Complete the following: The concept of ${keyword} is important because _______.`,
+          answer: keyword,
+          explanation: `This tests understanding of ${keyword}.`
+        };
+        break;
+      case 'short-answer':
+        question = {
+          type: 'short-answer',
+          question: `Explain the significance of ${keyword} in ${subject}.`,
+          answer: `A brief explanation about ${keyword}.`,
+          explanation: `This question assesses knowledge of ${keyword}.`
+        };
+        break;
+      case 'true-false':
+        question = {
+          type: 'true-false',
+          question: `${keyword} is an important concept in ${subject}.`,
+          correctAnswer: true,
+          explanation: `This statement is about ${keyword}.`
+        };
+        break;
+    }
+    
+    questions.push({
+      id: i + 1,
+      ...question,
+      difficulty: 'medium',
+      topic: chapter || subject,
+      keywords: [keyword]
+    });
+  }
+  
+  return {
+    title: `${subject} - ${chapter || 'Worksheet'}`,
+    description: `Practice questions for ${board} ${grade} ${subject}`,
+    instructions: 'Answer all questions carefully.',
+    questions,
+    metadata: {
+      board,
+      grade,
+      subject,
+      chapter,
+      seedKeywords,
+      chunksUsed: chunks.length,
+      generatedAt: new Date().toISOString(),
+      isFallback: true
+    }
+  };
+}
+
 module.exports = {
   createWorksheet,
   getWorksheets,
@@ -1280,5 +1714,6 @@ module.exports = {
   deleteWorksheet,
   generatePDF,
   exportToMicrosoftForms,
-  downloadFormsCSV
+  downloadFormsCSV,
+  createCurriculumWorksheet
 };

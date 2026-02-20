@@ -6,6 +6,9 @@ const N8N_API_KEY = process.env.N8N_API_KEY || 'your-api-key';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+// Import AI usage service for quota checking and logging
+const aiUsageService = require('./aiUsageService');
+
 /**
  * Generate worksheet content using n8n AI service
  * @param {Object} params - Worksheet parameters
@@ -15,10 +18,52 @@ const RETRY_DELAY = 1000; // 1 second
  * @param {string} params.skill - Skill/topic
  * @param {string} params.theme - Optional theme
  * @param {number} params.questionCount - Number of questions to generate
+ * @param {string} params.schoolId - School ID for quota tracking
+ * @param {string} params.userId - User ID for quota tracking
+ * @param {string} params.requestId - Optional request ID for correlation
  * @returns {Promise<Object>} - Generated worksheet content
  */
 async function generateWorksheetContent(params) {
-  const { curriculum, grade, ageGroup, skill, theme, questionCount = 8 } = params;
+  const { 
+    curriculum, 
+    grade, 
+    ageGroup, 
+    skill, 
+    theme, 
+    questionCount = 8,
+    schoolId,
+    userId,
+    requestId
+  } = params;
+
+  // ============================================
+  // QUOTA ENFORCEMENT - Check before calling AI
+  // ============================================
+  if (schoolId) {
+    try {
+      const quota = await aiUsageService.checkQuota(schoolId);
+      
+      if (quota.exceeded) {
+        console.error(`[n8n] AI quota exceeded for school ${schoolId}`);
+        throw new Error('AI_QUOTA_EXCEEDED: Your AI usage quota has been exceeded for this billing period. Please upgrade your plan or wait for the next billing cycle.');
+      }
+
+      // Log warning if approaching limit
+      if (quota.warning) {
+        console.warn(`[n8n] Quota warning for school ${schoolId}: ${quota.percentage}% used`);
+      }
+    } catch (error) {
+      // If it's our quota error, re-throw it
+      if (error.message.startsWith('AI_QUOTA_EXCEEDED')) {
+        throw error;
+      }
+      // For other errors, log but continue (don't block on quota check failure)
+      console.error('[n8n] Quota check failed:', error.message);
+    }
+  }
+
+  // Generate unique request ID if not provided
+  const trackingId = requestId || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const payload = {
     curriculum,
@@ -27,6 +72,10 @@ async function generateWorksheetContent(params) {
     skill,
     theme: theme || 'general',
     questionCount,
+    // Include tracking data for usage logging
+    schoolId,
+    userId,
+    requestId: trackingId,
     timestamp: new Date().toISOString()
   };
 
@@ -69,6 +118,10 @@ async function generateWorksheetContent(params) {
       console.log('[n8n] Normalized content:', JSON.stringify(normalizedContent, null, 2));
 
       console.log('[n8n] Successfully generated worksheet content');
+      
+      // Note: Usage logging is now handled by n8n calling back to /api/ai-usage/log
+      // This ensures accurate token counts from the actual AI response
+      
       return normalizedContent;
 
     } catch (error) {
@@ -84,6 +137,23 @@ async function generateWorksheetContent(params) {
 
   // All retries failed, use fallback
   console.error('[n8n] All attempts failed, using fallback content');
+  
+  // Log fallback usage (no AI tokens used, but track the request)
+  if (schoolId) {
+    await aiUsageService.logAiUsage({
+      schoolId,
+      userId,
+      feature: 'worksheet_generation',
+      model: 'fallback',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      requestId: trackingId,
+      source: 'db_fallback',
+      metadata: { reason: 'n8n_unavailable', error: lastError?.message }
+    });
+  }
+  
   return generateFallbackContent(params);
 }
 
@@ -347,7 +417,202 @@ async function testConnection() {
 
 module.exports = {
   generateWorksheetContent,
+  generateCurriculumWorksheet,
   validateWorksheetContent,
   normalizeContent,
   testConnection
 };
+
+/**
+ * Generate curriculum-grounded worksheet content using n8n AI service
+ * This function uses textbook content chunks to generate syllabus-aligned worksheets
+ * @param {Object} params - Worksheet parameters
+ * @param {string} params.board - Board name (CBSE, ICSE, etc.)
+ * @param {string} params.grade - Grade level
+ * @param {string} params.subject - Subject (Math, Science, etc.)
+ * @param {string} params.chapter - Chapter title (optional)
+ * @param {string[]} params.seedKeywords - Keywords for content retrieval
+ * @param {number} params.numQuestions - Number of questions to generate
+ * @param {Object[]} params.chunks - Retrieved content chunks
+ * @returns {Promise<Object>} - Generated worksheet content
+ */
+async function generateCurriculumWorksheet(params) {
+  const { 
+    board, 
+    grade, 
+    subject, 
+    chapter, 
+    seedKeywords, 
+    numQuestions = 10,
+    chunks 
+  } = params;
+
+  if (!chunks || chunks.length === 0) {
+    console.error('[n8n] No content chunks provided for curriculum worksheet');
+    return generateFallbackCurriculumContent(params);
+  }
+
+  // Combine chunks into context
+  const contextText = chunks
+    .map(c => c.text)
+    .join('\n\n---\n\n')
+    .substring(0, 8000); // Limit context size
+
+  const payload = {
+    type: 'curriculum-grounded',
+    board,
+    grade,
+    subject,
+    chapter: chapter || 'General',
+    seedKeywords,
+    numQuestions,
+    context: contextText,
+    timestamp: new Date().toISOString()
+  };
+
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`[n8n] Attempt ${attempt}: Generating curriculum worksheet for ${board} - ${grade} - ${subject}`);
+      console.log(`[n8n] Chapter: ${chapter || 'N/A'}`);
+      console.log(`[n8n] Keywords: ${seedKeywords.join(', ')}`);
+      console.log(`[n8n] Context length: ${contextText.length} characters`);
+
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': N8N_API_KEY
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(60000) // 60 second timeout for larger context
+      });
+
+      console.log(`[n8n] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[n8n] Error response body:`, errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      const content = await response.json();
+      console.log(`[n8n] Response content received`);
+
+      // Validate response
+      if (!validateWorksheetContent(content)) {
+        throw new Error('Invalid worksheet content received from n8n');
+      }
+
+      // Normalize content to standard format
+      const normalizedContent = normalizeContent(content);
+      
+      // Add metadata about the source
+      normalizedContent.metadata = {
+        board,
+        grade,
+        subject,
+        chapter,
+        seedKeywords,
+        chunksUsed: chunks.length,
+        generatedAt: new Date().toISOString()
+      };
+
+      console.log('[n8n] Successfully generated curriculum worksheet content');
+      return normalizedContent;
+
+    } catch (error) {
+      lastError = error;
+      console.error(`[n8n] Attempt ${attempt} failed:`, error.message);
+
+      if (attempt < MAX_RETRIES) {
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+      }
+    }
+  }
+
+  // All retries failed, use fallback
+  console.error('[n8n] All attempts failed, using fallback content');
+  return generateFallbackCurriculumContent(params);
+}
+
+/**
+ * Generate fallback curriculum worksheet content when n8n is unavailable
+ * @param {Object} params - Worksheet parameters
+ * @returns {Object} - Fallback worksheet content
+ */
+function generateFallbackCurriculumContent(params) {
+  const { board, grade, subject, chapter, seedKeywords, numQuestions = 10, chunks } = params;
+  
+  // Create questions based on the keywords and available context
+  const questions = [];
+  const questionTypes = ['multiple-choice', 'fill-blank', 'short-answer', 'true-false'];
+  
+  for (let i = 0; i < numQuestions; i++) {
+    const type = questionTypes[i % questionTypes.length];
+    const keyword = seedKeywords[i % seedKeywords.length];
+    
+    let question;
+    switch (type) {
+      case 'multiple-choice':
+        question = {
+          type: 'multiple-choice',
+          question: `Which of the following best describes ${keyword}?`,
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          correctAnswer: 0,
+          explanation: `This question is about ${keyword}.`
+        };
+        break;
+      case 'fill-blank':
+        question = {
+          type: 'fill-blank',
+          question: `Complete the following: The concept of ${keyword} is important because _______.`,
+          answer: keyword,
+          explanation: `This tests understanding of ${keyword}.`
+        };
+        break;
+      case 'short-answer':
+        question = {
+          type: 'short-answer',
+          question: `Explain the significance of ${keyword} in ${subject}.`,
+          answer: `A brief explanation about ${keyword}.`,
+          explanation: `This question assesses knowledge of ${keyword}.`
+        };
+        break;
+      case 'true-false':
+        question = {
+          type: 'true-false',
+          question: `${keyword} is an important concept in ${subject}.`,
+          correctAnswer: true,
+          explanation: `This statement is about ${keyword}.`
+        };
+        break;
+    }
+    
+    questions.push({
+      id: i + 1,
+      ...question,
+      difficulty: 'medium',
+      topic: chapter || subject,
+      keywords: [keyword]
+    });
+  }
+  
+  return {
+    title: `${subject} - ${chapter || 'Worksheet'}`,
+    description: `Practice questions for ${board} ${grade} ${subject}`,
+    questions,
+    metadata: {
+      board,
+      grade,
+      subject,
+      chapter,
+      seedKeywords,
+      chunksUsed: chunks ? chunks.length : 0,
+      generatedAt: new Date().toISOString(),
+      isFallback: true
+    }
+  };
+}

@@ -13,6 +13,13 @@ const userRoutes = require('./routes/user');
 const worksheetRoutes = require('./routes/worksheet');
 const skillRoutes = require('./routes/skill');
 const themeRoutes = require('./routes/theme');
+const boardRoutes = require('./routes/board');
+const bookRoutes = require('./routes/book');
+const chapterRoutes = require('./routes/chapter');
+const contentRoutes = require('./routes/content');
+const ingestionRoutes = require('./routes/ingestion');
+const adminRoutes = require('./routes/admin');
+const aiUsageRoutes = require('./routes/aiUsage');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -60,6 +67,13 @@ app.use('/api/users', userRoutes);
 app.use('/api/worksheets', worksheetRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/themes', themeRoutes);
+app.use('/api/boards', boardRoutes);
+app.use('/api/books', bookRoutes);
+app.use('/api/chapters', chapterRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/ingestion', ingestionRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/ai-usage', aiUsageRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
